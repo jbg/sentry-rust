@@ -26,7 +26,7 @@ use futures::Stream;
 extern crate hyper;
 use hyper::{Client, Method};
 use hyper::client::Request;
-use hyper::header::{Headers, ContentType};
+use hyper::header::{Headers, ContentType, Authorization, Basic};
 
 extern crate hyper_tls;
 use hyper_tls::HttpsConnector;
@@ -538,6 +538,7 @@ impl Sentry {
                                   credential.key,
                                   credential.secret);
         headers.set(XSentryAuth(xsentryauth));
+        headers.set(Authorization(Basic { username: credential.key.clone(), password: Some(credential.secret.clone()) }));
 
 
         headers.set(ContentType::json());
