@@ -565,7 +565,7 @@ impl Sentry {
           .and_then(|b| String::from_utf8(b.to_vec()).map_err(|e| e.to_string()));
 
         let body = core.run(work).unwrap();
-        trace!("Sentry Response {}", body);
+        info!("Sentry Response {}", body);
     }
 
     pub fn log_event(&self, e: Event) {
