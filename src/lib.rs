@@ -11,21 +11,25 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::fmt::{self, Debug};
 use std::default::Default;
-use std::time::Duration;
-use std::io::Read;
 use std::env;
 use std::error::Error;
 use std::str::FromStr;
-// use std::io::Write;
+
+extern crate tokio_core;
+use tokio_core::reactor::Core;
+
+extern crate futures;
+use futures::future::Future;
+use futures::Stream;
 
 #[macro_use]
 extern crate hyper;
-use hyper::Client;
-use hyper::net::HttpsConnector;
+use hyper::{Client, Method};
+use hyper::client::Request;
 use hyper::header::{Headers, ContentType};
 
-extern crate hyper_native_tls;
-use hyper_native_tls::NativeTlsClient;
+extern crate hyper_tls;
+use hyper_tls::HttpsConnector;
 
 extern crate chrono;
 use chrono::offset::utc::UTC;
@@ -541,11 +545,10 @@ impl Sentry {
         let body = e.to_json_string();
         trace!("Sentry body {}", body);
 
-        let ssl = NativeTlsClient::new().unwrap();
-        let connector = HttpsConnector::new(ssl);
-        let mut client = Client::with_connector(connector);
-        client.set_read_timeout(Some(Duration::new(5, 0)));
-        client.set_write_timeout(Some(Duration::new(5, 0)));
+        let mut core = Core::new().unwrap();
+        let handle = core.handle();
+        let connector = HttpsConnector::new(4, &handle);
+        let client = Client::configure().connector(connector).build(&handle);
 
         // {PROTOCOL}://{PUBLIC_KEY}:{SECRET_KEY}@{HOST}/{PATH}{PROJECT_ID}/store/
         let url = format!("https://{}:{}@{}/api/{}/store/",
@@ -554,15 +557,15 @@ impl Sentry {
                           credential.host,
                           credential.project_id);
 
-        let mut res = client.post(&url)
-            .headers(headers)
-            .body(&body)
-            .send()
-            .unwrap();
+        let mut request = Request::new(Method::Post, url.parse().unwrap());
+        *request.headers_mut() = headers;
+        request.set_body(body);
+        let work = client.request(request)
+          .and_then(|res| res.body().concat2())
+          .map_err(|e| e.to_string())
+          .and_then(|b| String::from_utf8(b.to_vec()).map_err(|e| e.to_string()));
 
-        // Read the Response.
-        let mut body = String::new();
-        res.read_to_string(&mut body).unwrap();
+        let body = core.run(work).unwrap();
         trace!("Sentry Response {}", body);
     }
 

@@ -7,16 +7,19 @@ readme = "Readme.md"
 repository = "https://github.com/aagahi/rust-sentry"
 homepage = "https://github.com/aagahi/rust-sentry"
 documentation = "https://github.com/aagahi/rust-sentry"
-description = """
-Sentry (getsentry.com) client for rust ;)
-"""
-
+description = "Sentry (getsentry.com) client for Rust"
 
 [dependencies]
 backtrace = "0.3"
-hyper = "0.10"
-hyper-native-tls = "0.2.2"
+hyper = { git = "https://github.com/jbg/hyper" }
+hyper-tls = { git = "https://github.com/hyperium/hyper-tls" }
 time = "0.1"
 chrono = "0.3"
 url = "1"
 log = "0.3"
+tokio-core = "0.1"
+futures = "0.1"
+
+[replace]
+"https://github.com/hyperium/hyper#0.11.0-a.0" = { git = "https://github.com/jbg/hyper" }
+"futures:0.1.13" = { git = "https://github.com/alexcrichton/futures-rs" }
