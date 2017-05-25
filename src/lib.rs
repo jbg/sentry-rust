@@ -551,9 +551,7 @@ impl Sentry {
         let client = Client::configure().connector(connector).build(&handle);
 
         // {PROTOCOL}://{PUBLIC_KEY}:{SECRET_KEY}@{HOST}/{PATH}{PROJECT_ID}/store/
-        let url = format!("https://{}:{}@{}/api/{}/store/",
-                          credential.key,
-                          credential.secret,
+        let url = format!("https://{}/api/{}/store/",
                           credential.host,
                           credential.project_id);
 
