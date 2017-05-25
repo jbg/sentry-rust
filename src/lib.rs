@@ -34,6 +34,9 @@ use hyper_tls::HttpsConnector;
 extern crate chrono;
 use chrono::offset::utc::UTC;
 
+#[macro_use] extern crate serde_derive;
+extern crate serde_json;
+
 struct ThreadState<'a> {
     alive: &'a mut Arc<AtomicBool>,
 }
@@ -122,81 +125,7 @@ impl<T: 'static + Debug + Send, P: 'static + Clone + Send> SingleWorker<T, P> {
     }
 }
 
-
-pub trait ToJsonString {
-    fn to_json_string(&self) -> String;
-}
-
-impl ToJsonString for String {
-    // adapted from rustc_serialize json.rs
-    fn to_json_string(&self) -> String {
-        let mut s = String::new();
-        s.push_str("\"");
-
-        let mut start = 0;
-
-        for (i, byte) in self.bytes().enumerate() {
-            let escaped = match byte {
-                b'"' => "\\\"",
-                b'\\' => "\\\\",
-                b'\x00' => "\\u0000",
-                b'\x01' => "\\u0001",
-                b'\x02' => "\\u0002",
-                b'\x03' => "\\u0003",
-                b'\x04' => "\\u0004",
-                b'\x05' => "\\u0005",
-                b'\x06' => "\\u0006",
-                b'\x07' => "\\u0007",
-                b'\x08' => "\\b",
-                b'\t' => "\\t",
-                b'\n' => "\\n",
-                b'\x0b' => "\\u000b",
-                b'\x0c' => "\\f",
-                b'\r' => "\\r",
-                b'\x0e' => "\\u000e",
-                b'\x0f' => "\\u000f",
-                b'\x10' => "\\u0010",
-                b'\x11' => "\\u0011",
-                b'\x12' => "\\u0012",
-                b'\x13' => "\\u0013",
-                b'\x14' => "\\u0014",
-                b'\x15' => "\\u0015",
-                b'\x16' => "\\u0016",
-                b'\x17' => "\\u0017",
-                b'\x18' => "\\u0018",
-                b'\x19' => "\\u0019",
-                b'\x1a' => "\\u001a",
-                b'\x1b' => "\\u001b",
-                b'\x1c' => "\\u001c",
-                b'\x1d' => "\\u001d",
-                b'\x1e' => "\\u001e",
-                b'\x1f' => "\\u001f",
-                b'\x7f' => "\\u007f",
-                _ => {
-                    continue;
-                }
-            };
-
-
-            if start < i {
-                s.push_str(&self[start..i]);
-            }
-
-            s.push_str(escaped);
-
-            start = i + 1;
-        }
-
-        if start != self.len() {
-            s.push_str(&self[start..]);
-        }
-
-        s.push_str("\"");
-        s
-    }
-}
-
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct StackFrame {
     filename: String,
     function: String,
@@ -204,7 +133,7 @@ pub struct StackFrame {
 }
 
 // see https://docs.getsentry.com/hosted/clientdev/attributes/
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Event {
     // required
     event_id: String, // uuid4 exactly 32 characters (no dashes!)
@@ -269,104 +198,13 @@ impl Event {
     }
 }
 
-impl ToJsonString for Event {
-    fn to_json_string(&self) -> String {
-        let mut s = String::new();
-        s.push_str("{");
-        s.push_str(&format!("\"event_id\":{},", self.event_id.to_json_string()));
-        s.push_str(&format!("\"message\":{},", self.message.to_json_string()));
-        s.push_str(&format!("\"timestamp\":\"{}\",", self.timestamp));
-        s.push_str(&format!("\"level\":\"{}\",", self.level));
-        s.push_str(&format!("\"logger\":\"{}\",", self.logger));
-        s.push_str(&format!("\"platform\":\"{}\",", self.platform));
-        s.push_str(&format!("\"sdk\": {},", self.sdk.to_json_string()));
-        s.push_str(&format!("\"device\": {}", self.device.to_json_string()));
-
-        if let Some(ref culprit) = self.culprit {
-            s.push_str(&format!(",\"culprit\": {}", culprit.to_json_string()));
-        }
-        if let Some(ref server_name) = self.server_name {
-            s.push_str(&format!(",\"server_name\":\"{}\"", server_name));
-        }
-        if let Some(ref release) = self.release {
-            s.push_str(&format!(",\"release\":\"{}\"", release));
-        }
-        if self.tags.len() > 0 {
-            let last_index = self.tags.len() - 1;
-            s.push_str(",\"tags\":{");
-            for (index, tag) in self.tags.iter().enumerate() {
-                s.push_str(&format!("\"{}\":\"{}\"", tag.0, tag.1));
-                if index != last_index {
-                    s.push_str(",");
-                }
-            }
-            s.push_str("}");
-        }
-        if let Some(ref environment) = self.environment {
-            s.push_str(&format!(",\"environment\":\"{}\"", environment));
-        }
-        if self.modules.len() > 0 {
-            s.push_str(",\"modules\":\"{");
-            for module in self.modules.iter() {
-                s.push_str(&format!("\"{}\":\"{}\"", module.0, module.1));
-            }
-            s.push_str("}");
-        }
-        if self.extra.len() > 0 {
-            s.push_str(",\"extra\":\"{");
-            for extra in self.extra.iter() {
-                s.push_str(&format!("\"{}\":\"{}\"", extra.0, extra.1));
-            }
-            s.push_str("}");
-        }
-        if let Some(ref stack_trace) = self.stack_trace {
-            s.push_str(",\"stacktrace\":{\"frames\":[");
-            // push stack frames, starting with the oldest
-            let mut is_first = true;
-            for stack_frame in stack_trace.iter().rev() {
-                if !is_first {
-                    s.push_str(",");
-                } else {
-                    is_first = false;
-                }
-                s.push_str(&format!("{{\"filename\":\"{}\",\"function\":\"{}\",\"lineno\":{}}}",
-                                    stack_frame.filename,
-                                    stack_frame.function,
-                                    stack_frame.lineno));
-            }
-            s.push_str("]}");
-        }
-        if self.fingerprint.len() > 0 {
-            s.push_str(",\"fingerprint\":[");
-            let mut comma = false;
-            for fingerprint in self.fingerprint.iter() {
-                if comma {
-                    s.push_str(",");
-                }
-                s.push_str(&fingerprint.to_json_string());
-                comma = true;
-            }
-            s.push_str("]");
-        }
-
-        s.push_str("}");
-        s
-    }
-}
-
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SDK {
     name: String,
     version: String,
 }
-impl ToJsonString for SDK {
-    fn to_json_string(&self) -> String {
-        format!("{{\"name\":\"{}\",\"version\":\"{}\"}}",
-                self.name,
-                self.version)
-    }
-}
-#[derive(Debug, Clone, PartialEq)]
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct Device {
     name: String,
     version: String,
@@ -394,16 +232,6 @@ impl Default for Device {
         }
     }
 }
-
-impl ToJsonString for Device {
-    fn to_json_string(&self) -> String {
-        format!("{{\"name\":\"{}\",\"version\":\"{}\",\"build\":\"{}\"}}",
-                self.name,
-                self.version,
-                self.build)
-    }
-}
-
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SentryCredential {
@@ -516,20 +344,8 @@ impl Sentry {
 
 
 
-    // POST /api/1/store/ HTTP/1.1
-    // Content-Type: application/json
-    //
     fn post(credential: &SentryCredential, e: &Event) {
-        // writeln!(&mut ::std::io::stderr(), "SENTRY: {}", e.to_json_string());
-
         let mut headers = Headers::new();
-
-        // X-Sentry-Auth: Sentry sentry_version=7,
-        // sentry_client=<client version, arbitrary>,
-        // sentry_timestamp=<current timestamp>,
-        // sentry_key=<public api key>,
-        // sentry_secret=<secret api key>
-        //
         let timestamp = time::get_time().sec.to_string();
         let xsentryauth = format!("Sentry sentry_version=7,sentry_client=rust-sentry/{},\
                                    sentry_timestamp={},sentry_key={},sentry_secret={}",
@@ -539,12 +355,10 @@ impl Sentry {
                                   credential.secret);
         headers.set(XSentryAuth(xsentryauth));
         headers.set(Authorization(Basic { username: credential.key.clone(), password: Some(credential.secret.clone()) }));
-
-
         headers.set(ContentType::json());
 
-        let body = e.to_json_string();
-        trace!("Sentry body {}", body);
+        let body = serde_json::to_string(e).unwrap();
+        info!("Sentry request: {}", body);
 
         let mut core = Core::new().unwrap();
         let handle = core.handle();
@@ -565,7 +379,7 @@ impl Sentry {
           .and_then(|b| String::from_utf8(b.to_vec()).map_err(|e| e.to_string()));
 
         let body = core.run(work).unwrap();
-        info!("Sentry Response {}", body);
+        info!("Sentry response: {}", body);
     }
 
     pub fn log_event(&self, e: Event) {
@@ -681,30 +495,12 @@ impl Sentry {
 
 #[cfg(test)]
 mod tests {
-    use super::{Device, Sentry, SentryCredential, Settings, SingleWorker, ToJsonString};
+    use super::{Device, Sentry, SentryCredential, Settings, SingleWorker};
     use std::sync::{Arc, Mutex};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::mpsc::channel;
     use std::thread;
     use std::panic::PanicInfo;
-
-
-    // use std::time::Duration;
-
-    #[test]
-    fn test_to_json_string_for_string() {
-        let uut1 = "".to_owned();
-        assert_eq!(uut1.to_json_string(), "\"\"");
-
-        let uut2 = "plain_string".to_owned();
-        assert_eq!(uut2.to_json_string(), "\"plain_string\"");
-
-        let uut3 = "string\"with escapes\"".to_owned();
-        assert_eq!(uut3.to_json_string(), "\"string\\\"with escapes\\\"\"");
-
-        let uut4 = "string with null\x00".to_owned();
-        assert_eq!(uut4.to_json_string(), "\"string with null\\u0000\"");
-    }
 
     #[test]
     fn it_should_pass_value_to_worker_thread() {
