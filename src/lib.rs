@@ -5,6 +5,7 @@ extern crate backtrace;
 extern crate time;
 extern crate url;
 
+use std::collections::HashMap;
 use std::thread;
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::sync::{Arc, Mutex};
@@ -14,6 +15,9 @@ use std::default::Default;
 use std::env;
 use std::error::Error;
 use std::str::FromStr;
+
+#[macro_use]
+extern crate maplit;
 
 extern crate tokio_core;
 use tokio_core::reactor::Core;
@@ -34,7 +38,9 @@ use hyper_tls::HttpsConnector;
 extern crate chrono;
 use chrono::offset::utc::UTC;
 
-#[macro_use] extern crate serde_derive;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate serde_json;
 
 struct ThreadState<'a> {
@@ -132,6 +138,11 @@ pub struct StackFrame {
     lineno: u32,
 }
 
+#[derive(Debug, Clone, Serialize)]
+struct StackTrace {
+    frames: Vec<StackFrame>
+}
+
 // see https://docs.getsentry.com/hosted/clientdev/attributes/
 #[derive(Debug, Clone, Serialize)]
 pub struct Event {
@@ -147,12 +158,12 @@ pub struct Event {
     // optional
     culprit: Option<String>, // the primary perpetrator of this event ex: "my.module.function_name"
     server_name: Option<String>, // host client from which the event was recorded
-    stack_trace: Option<Vec<StackFrame>>, // stack trace
+    stacktrace: Option<StackTrace>,
     release: Option<String>, // generally be something along the lines of the git SHA for the given project
-    tags: Vec<(String, String)>, // WARNING! should be serialized as json object k->v
+    tags: HashMap<String, String>,
     environment: Option<String>, // ex: "production"
-    modules: Vec<(String, String)>, // WARNING! should be serialized as json object k->v
-    extra: Vec<(String, String)>, // WARNING! should be serialized as json object k->v
+    modules: HashMap<String, String>,
+    extra: HashMap<String, String>,
     fingerprint: Vec<String>, // An array of strings used to dictate the deduplicating for this event.
 }
 impl Event {
@@ -183,18 +194,18 @@ impl Event {
             device: device.to_owned(),
             culprit: culprit.map(|c| c.to_owned()),
             server_name: server_name.map(|c| c.to_owned()),
-            stack_trace: stack_trace,
+            stacktrace: stack_trace.map(|f| StackTrace { frames: f }),
             release: release.map(|c| c.to_owned()),
-            tags: vec![],
+            tags: hashmap!{},
             environment: environment.map(|c| c.to_owned()),
-            modules: vec![],
-            extra: vec![],
+            modules: hashmap!{},
+            extra: hashmap!{},
             fingerprint: fingerprint.unwrap_or(vec![]),
         }
     }
 
     pub fn push_tag(&mut self, key: String, value: String) {
-        self.tags.push((key, value));
+        self.tags.insert(key, value);
     }
 }
 
