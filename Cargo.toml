@@ -1,12 +1,12 @@
 [package]
 name = "sentry"
-version = "0.1.9"
+version = "0.1.10"
 authors = ["Alexis Agahi <aagahi@prefetch.com>"]
 license = "MIT/Apache-2.0"
 readme = "Readme.md"
-repository = "https://github.com/aagahi/rust-sentry"
-homepage = "https://github.com/aagahi/rust-sentry"
-documentation = "https://github.com/aagahi/rust-sentry"
+repository = "https://github.com/getsentry/rust-sentry"
+homepage = "https://github.com/getsentry/rust-sentry"
+documentation = "https://github.com/getsentry/rust-sentry"
 description = "Sentry (getsentry.com) client for Rust"
 
 [dependencies]
@@ -23,3 +23,4 @@ serde_json = "1.0"
 serde = "1.0"
 serde_derive = "1.0"
 maplit = "0.1"
+error-chain = "0.10.0"

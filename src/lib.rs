@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate log;
 
+#[macro_use]
+extern crate error_chain;
+
 extern crate backtrace;
 extern crate time;
 extern crate url;
@@ -25,6 +28,10 @@ use tokio_core::reactor::Core;
 extern crate futures;
 use futures::future::Future;
 use futures::Stream;
+
+// use std::io::Write;
+mod errors;
+pub use self::errors::*;
 
 #[macro_use]
 extern crate hyper;
@@ -269,7 +276,7 @@ impl Error for CredentialParseError {
 
 impl FromStr for SentryCredential {
     type Err = CredentialParseError;
-    fn from_str(s: &str) -> Result<SentryCredential, CredentialParseError> {
+    fn from_str(s: &str) -> std::result::Result<SentryCredential, CredentialParseError> {
         url::Url::parse(s).ok()
             .and_then(|url| {
                 let username = url.username().to_string();
@@ -345,7 +352,7 @@ impl Sentry {
     pub fn from_settings(settings: Settings, credential: SentryCredential) -> Sentry {
         let worker = SingleWorker::new(credential,
                                        Box::new(move |credential, e| {
-                                           Sentry::post(credential, &e);
+                                           let _ = Sentry::post(credential, &e);
                                        }));
         Sentry {
             settings: settings,
@@ -355,7 +362,9 @@ impl Sentry {
 
 
 
-    fn post(credential: &SentryCredential, e: &Event) {
+    fn post(credential: &SentryCredential, e: &Event) -> Result<()> {
+        // writeln!(&mut ::std::io::stderr(), "SENTRY: {}", e.to_json_string());
+
         let mut headers = Headers::new();
         let timestamp = time::get_time().sec.to_string();
         let xsentryauth = format!("Sentry sentry_version=7,sentry_client=rust-sentry/{},\
@@ -390,7 +399,8 @@ impl Sentry {
           .and_then(|b| String::from_utf8(b.to_vec()).map_err(|e| e.to_string()));
 
         let body = core.run(work).unwrap();
-        info!("Sentry response: {}", body);
+        trace!("Sentry response: {}", body);
+        Ok(())
     }
 
     pub fn log_event(&self, e: Event) {
@@ -428,7 +438,7 @@ impl Sentry {
                     let name = symbol.name()
                         .map_or("unresolved symbol".to_string(), |name| name.to_string());
                     let filename = symbol.filename()
-                        .map_or("".to_string(), |sym| format!("{:?}", sym));
+                        .map_or("".to_string(), |sym| sym.to_string_lossy().into_owned());
                     let lineno = symbol.lineno().unwrap_or(0);
                     frames.push(StackFrame {
                         filename: filename,

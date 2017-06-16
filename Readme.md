@@ -1,9 +1,9 @@
 Rust Sentry Lib
 ==========
 
-[![Build Status](https://travis-ci.org/aagahi/rust-sentry.svg?branch=master)](https://travis-ci.org/aagahi/rust-sentry)
+[![Build Status](https://travis-ci.org/getsentry/sentry-rust.svg?branch=master)](https://travis-ci.org/getsentry/sentry-rust)
 [![Crates.io](https://img.shields.io/crates/v/sentry.svg?style=flat)](https://crates.io/crates/sentry)
-[![Coverage Status](https://coveralls.io/repos/github/aagahi/rust-sentry/badge.svg?branch=master)](https://coveralls.io/github/aagahi/rust-sentry?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/getsentry/sentry-rust/badge.svg?branch=master)](https://coveralls.io/github/getsentry/sentry-rust?branch=master)
 
 
 [Sentry Service](https://www.getsentry.com/) now available for rust ;)
@@ -19,7 +19,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-sentry = "0.1.9"
+sentry = "0.1.10"
 ```
 
 and this to your crate root:
