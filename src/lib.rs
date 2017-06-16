@@ -382,7 +382,7 @@ impl Sentry {
 
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-        let connector = HttpsConnector::new(4, &handle);
+        let connector = HttpsConnector::new(4, &handle).unwrap();
         let client = Client::configure().connector(connector).build(&handle);
 
         // {PROTOCOL}://{PUBLIC_KEY}:{SECRET_KEY}@{HOST}/{PATH}{PROJECT_ID}/store/
